@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-from typing import Optional
-
 import numpy as np
-from reedsolo import RSCodec, ReedSolomonError
+from reedsolo import ReedSolomonError, RSCodec
 
 
 class BitCodec:
@@ -11,7 +9,7 @@ class BitCodec:
 
     SYNC_MARKER = bytes([0x5A, 0xA5])
 
-    def __init__(self, parity_bytes: int = 8, sync_marker: Optional[bytes] = None) -> None:
+    def __init__(self, parity_bytes: int = 8, sync_marker: bytes | None = None) -> None:
         if parity_bytes <= 0:
             raise ValueError("parity_bytes must be positive")
         self.parity_bytes = int(parity_bytes)
@@ -33,7 +31,7 @@ class BitCodec:
         bits = np.unpackbits(np.frombuffer(packet, dtype=np.uint8), bitorder="big").astype(np.uint8)
         return bits
 
-    def decode_packet(self, bitstream: np.ndarray) -> Optional[str]:
+    def decode_packet(self, bitstream: np.ndarray) -> str | None:
         """Decode a bitstream packet. Returns the original string on success, otherwise None."""
         flat = np.asarray(bitstream, dtype=np.uint8).reshape(-1)
         if flat.size < len(self.sync_marker) * 8:

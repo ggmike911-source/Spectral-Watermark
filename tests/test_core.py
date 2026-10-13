@@ -10,9 +10,10 @@ def test_get_bin_pairs_determinism_and_frequency_exclusion():
     assert len(pairs_a) == 16
     assert len(pairs_b) == 16
     assert len(set(pairs_a).union(pairs_b)) == 32
+    assert not {(11, 11), (53, 11)}.intersection(pairs_a + pairs_b)
 
     for pair in pairs_a + pairs_b:
-        u, v = pair
+        _, v = pair
         assert v != 0
         assert v != 32
 

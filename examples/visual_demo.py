@@ -1,31 +1,44 @@
 """
 visual_demo.py - Interactive Visual Inspector for spectral-watermark
-Saves a 4-panel diagnostic figure to 'demo_output.png'.
+Saves a 4-panel diagnostic figure to 'demo_output.png'
+and the embedded (stego) image to 'stego_output.png'.
 """
 
 import math
-import subprocess
-import sys
-import numpy as np
+
 import matplotlib
+import numpy as np
+
 # Use headless backend to ensure compatibility on any system
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+# def generate_sample_canvas(size: int = 256) -> np.ndarray:
+#     """Generates an unmistakably unique test image with random shapes every run."""
+#     rng = np.random.default_rng()
+#     canvas = np.zeros((size, size), dtype=np.float64)
+#     # 1. Random background gradient angle and intensity
+#     angle = rng.uniform(0, 2 * np.pi)
+#     gy, gx = np.mgrid[:size, :size]
+#     canvas += 128.0 + 40.0 * np.sin((gx * np.cos(angle) + gy * np.sin(angle)) / 20.0)
+#     # 2. Draw 3 random high-contrast geometric shapes
+#     for _ in range(4):
+#         cy, cx = rng.integers(40, size - 40, size=2)
+#         radius = rng.integers(15, 45)
+#         dist = np.sqrt((gx - cx) ** 2 + (gy - cy) ** 2)
+#         canvas[dist < radius] += rng.uniform(-60.0, 60.0)
+#     # 3. Add high-frequency texture
+#     canvas += rng.normal(0, 15.0, size=(size, size))
+#     return np.clip(canvas, 0, 255).astype(np.uint8)
+from PIL import Image
+
 from spectral_watermark import WatermarkPipeline
 
+# Load your own image
 
-def generate_sample_canvas(size: int = 256) -> np.ndarray:
-    """Generates a realistic test image canvas with natural texture."""
-    rng = np.random.default_rng(2026)
-    # Natural spatial gradient + high/mid frequency texture
-    y = np.linspace(60, 200, size).reshape(-1, 1)
-    x = np.linspace(40, 180, size).reshape(1, -1)
-    gradient = (y + x) / 2.0
-    texture = rng.normal(0, 20.0, size=(size, size))
-    return np.clip(gradient + texture, 0, 255).astype(np.uint8)
-
-
+pil_image = Image.open("my_photo.jpg").convert("L")  # Convert to grayscale
+pil_image = pil_image.resize((256, 256))  # Resize to 256x256
+original = np.array(pil_image)
 
 def compute_psnr(ref: np.ndarray, deg: np.ndarray) -> float:
     """Calculates Peak Signal-to-Noise Ratio (PSNR) in dB."""
@@ -36,19 +49,22 @@ def compute_psnr(ref: np.ndarray, deg: np.ndarray) -> float:
 def main() -> None:
     print("[*] Initializing spectral watermark pipeline...")
     pipeline = WatermarkPipeline(block_size=64)
-    secret_text = "TOP_SECRET_IOAI"
-    original = generate_sample_canvas(256)
+    secret_text = "TOP_SECRET"
+    original = np.array(pil_image) # np.array(pil_image) / generate_sample_canvas(256)  # Use your own image here
 
     # 1. Embed Secret Watermark
     stego, bit_len = pipeline.embed_image(original, secret_text)
     psnr_val = compute_psnr(original, stego)
     print(f"[*] Watermark embedded successfully (PSNR: {psnr_val:.2f} dB)")
 
+    # Save the embedded (stego) image to disk
+    stego_filename = "stego_output.png"
+    Image.fromarray(stego).save(stego_filename)
+    print(f"[+] Embedded image saved to: {stego_filename}")
+
     # 2. Amplify Residual (Difference) to display frequency modifications
     residual = np.abs(stego.astype(np.float64) - original.astype(np.float64))
     amplified_residual = np.clip(residual * 20.0, 0, 255).astype(np.uint8)
-
-
 
     # 3. Simulate a 40% Cropping Attack
     crop_h, crop_w = 160, 160
@@ -62,7 +78,7 @@ def main() -> None:
     print(f"[*] Recovered payload: '{recovered_text}'")
 
     # 5. Render & Save 4-Panel Visualization
-    fig, axes = plt.subplots(1, 4, figsize=(16, 4.5))
+    fig, axes = plt.subplots(1, 4, figsize=(16, 6))
     fig.suptitle(f"spectral-watermark Visual Inspector | Recovered: '{recovered_text}'", fontsize=14, fontweight="bold")
 
     axes[0].imshow(original, cmap="gray")
