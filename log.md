@@ -209,3 +209,21 @@ Running `visual_demo.py` embedded the watermark with high fidelity (PSNR 44.5 dB
 - `.venv\Scripts\pytest -v`: **15 passed in 6.51s** after the scale ordering and CLI option changes.
 - `.venv\Scripts\ruff check src/ tests/ examples/`: **All checks passed**.
 - Follow-up needed for truly automatic arbitrary-scale screen captures: replace full-canvas pilot-pair detection with a tile-local pilot/scale search, and add a complete bounded scale-registration test based on actual captured pixels. Current evidence explains why this screenshot misses but does not conclusively prove whether its watermark survived screen resampling.
+
+---
+
+# Phase 7: Official Click CLI & Benchmark Suite [DONE]
+
+## Implementation
+- Added the Click command group in `src/spectral_watermark/cli.py`; the existing `spectral-watermark = "spectral_watermark.cli:main"` console-script entry point now resolves without changing `pyproject.toml`.
+- `embed` accepts required `--input`, `--payload`, and `--output`; validates non-empty payloads against the 320-bit single-tile capacity, creates destination directories, saves through Pillow, warns for JPEG output, and reports dimensions, PSNR, bit length, and elapsed time.
+- `extract` accepts `--stride`, `--bit-len`, `--min-chars`, `--max-chars`, repeatable `--scale`, `--multi-scale`, `--timeout`, and `--quiet`. It reports calibrated scale and elapsed time unless quiet, and reports clean non-zero errors when extraction fails.
+- `benchmark` accepts `--input`, `--payload`, and deterministic `--seed`; it reports baseline recovery plus unaligned crop, JPEG quality 75/50, Gaussian blur, and Gaussian noise results in a summary table. JPEG round-trips use in-memory `BytesIO`.
+- Added `tests/test_cli.py` with **8 CLI tests** for version/help, round-trip embed/extract, unaligned crops, small and invalid images, payload validation, and the benchmark. Corrected the pipeline progress callback type to match its five-argument invocation; added narrow mypy ignores for installed third-party libraries without stubs.
+
+## Phase 7 verification
+- `.venv\Scripts\pytest -v`: **23 passed in 18.38s**.
+- `.venv\Scripts\ruff check src/ tests/ examples/`: passed in **0.04s**.
+- `.venv\Scripts\mypy src/`: **Success: no issues found in 6 source files** in **0.46s**.
+- `.venv\Scripts\spectral-watermark --help`: passed in **0.75s** and listed all three commands.
+- `git diff --check`: passed.

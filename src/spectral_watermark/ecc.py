@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
-from reedsolo import ReedSolomonError, RSCodec
+from reedsolo import ReedSolomonError, RSCodec  # type: ignore[import-untyped]
 
 
 class BitCodec:

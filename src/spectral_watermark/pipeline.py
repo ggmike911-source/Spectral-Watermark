@@ -65,7 +65,7 @@ class WatermarkPipeline:
         scales: list[float] | None = None,
         min_chars: int = 1,
         max_chars: int = 32,
-        on_progress: Callable[[int, int, int, int], None] | None = None,
+        on_progress: Callable[[int, int, int, int, int], None] | None = None,
         timeout: float | None = None,
         on_scale_detected: Callable[[float], None] | None = None,
     ) -> str | None:

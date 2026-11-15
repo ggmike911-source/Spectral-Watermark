@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 
 import numpy as np
-from scipy.ndimage import maximum_filter
+from scipy.ndimage import maximum_filter  # type: ignore[import-untyped]
 
 PILOT_REFERENCE_R = 16.0
 PILOT_BOOST_FACTOR = 4.5
