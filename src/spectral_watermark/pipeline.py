@@ -25,26 +25,47 @@ class WatermarkPipeline:
         self.engine = SpectralEngine(block_size=block_size, r_min=r_min, r_max=r_max, seed=seed)
         self.calibrator = self.engine.calibrator
 
-    def _to_grayscale(self, image: np.ndarray) -> np.ndarray:
-        arr = np.asarray(image)
+    @staticmethod
+    def _image_array(image: np.ndarray | Image.Image) -> np.ndarray:
+        if isinstance(image, Image.Image):
+            if image.mode in {"L", "RGB", "RGBA"}:
+                return np.asarray(image).copy()
+            if image.mode == "P":
+                mode = "RGBA" if "transparency" in image.info else "RGB"
+                return np.asarray(image.convert(mode)).copy()
+            if image.mode == "LA" or "transparency" in image.info:
+                return np.asarray(image.convert("RGBA")).copy()
+            if image.mode in {"CMYK", "YCbCr"}:
+                return np.asarray(image.convert("RGB")).copy()
+            return np.asarray(image.convert("L")).copy()
+        return np.asarray(image)
+
+    @staticmethod
+    def _rgb_to_ycbcr(image: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        rgb = np.asarray(image, dtype=np.float64)
+        red, green, blue = rgb[..., 0], rgb[..., 1], rgb[..., 2]
+        luminance = 0.299 * red + 0.587 * green + 0.114 * blue
+        cb = -0.168736 * red - 0.331264 * green + 0.5 * blue + 128.0
+        cr = 0.5 * red - 0.418688 * green - 0.081312 * blue + 128.0
+        return luminance, cb, cr
+
+    def _to_grayscale(self, image: np.ndarray | Image.Image) -> np.ndarray:
+        arr = self._image_array(image)
         if arr.ndim == 2:
             return arr.astype(np.float64)
-        if arr.ndim == 3 and arr.shape[2] in (1, 3, 4):
-            if arr.shape[2] == 1:
-                return arr[:, :, 0].astype(np.float64)
-            rgb = arr[:, :, :3]
-            luminance = rgb @ np.array([0.299, 0.587, 0.114], dtype=np.float64)
-            return luminance.astype(np.float64)
+        if arr.ndim == 3 and arr.shape[2] == 1:
+            return arr[:, :, 0].astype(np.float64)
+        if arr.ndim == 3 and arr.shape[2] in (3, 4):
+            luminance, _, _ = self._rgb_to_ycbcr(arr)
+            return luminance
         raise ValueError("Image must be 2D grayscale or an RGB(A) image")
 
-    def embed_image(self, image: np.ndarray, payload: str, alpha: float = 0.45) -> tuple[np.ndarray, int]:
-        """Embed one payload into every tile of the image and return the stego image and bit length."""
-        grayscale = self._to_grayscale(image)
+    def _embed_luminance(self, luminance: np.ndarray, payload: str, alpha: float) -> tuple[np.ndarray, int]:
         bits = self.codec.encode_payload(payload)
         pairs_a, pairs_b = self.engine.get_bin_pairs(len(bits))
 
-        height, width = grayscale.shape
-        stego = grayscale.copy()
+        height, width = luminance.shape
+        stego = luminance.astype(np.float64, copy=True)
         block_size = self.engine.block_size
 
         for y in range(0, height, block_size):
@@ -52,14 +73,46 @@ class WatermarkPipeline:
                 tile = stego[y : y + block_size, x : x + block_size]
                 tile_pad = np.zeros((block_size, block_size), dtype=np.float64)
                 tile_pad[: tile.shape[0], : tile.shape[1]] = tile
-                embedded_block = self.engine.embed_tile(tile_pad, bits, pairs_a, pairs_b, alpha=alpha)
-                stego[y : y + tile.shape[0], x : x + tile.shape[1]] = embedded_block[: tile.shape[0], : tile.shape[1]]
+                embedded_block = self.engine.embed_tile(
+                    tile_pad, bits, pairs_a, pairs_b, alpha=alpha
+                )
+                stego[y : y + tile.shape[0], x : x + tile.shape[1]] = embedded_block[
+                    : tile.shape[0], : tile.shape[1]
+                ]
 
-        return np.clip(stego, 0.0, 255.0).astype(np.uint8), len(bits)
+        return stego, len(bits)
+
+    def embed_image(
+        self, image: np.ndarray | Image.Image, payload: str, alpha: float = 0.45
+    ) -> tuple[np.ndarray, int]:
+        """Embed into grayscale or the luminance of an RGB/RGBA image."""
+        arr = self._image_array(image)
+        if arr.ndim == 3 and arr.shape[2] in (3, 4):
+            original_luminance, _, _ = self._rgb_to_ycbcr(arr)
+            # Color carries JPEG chroma-subsampling artifacts into reconstructed Y;
+            # stronger luminance modulation preserves the existing ECC recovery margin.
+            watermarked_luminance, bit_len = self._embed_luminance(
+                original_luminance, payload, max(alpha, 2.0)
+            )
+            delta_luminance = watermarked_luminance - original_luminance
+            rgb = np.asarray(arr[..., :3], dtype=np.float64)
+            watermarked_rgb = np.clip(
+                np.rint(rgb + delta_luminance[..., np.newaxis]), 0.0, 255.0
+            ).astype(np.uint8)
+            if arr.shape[2] == 4:
+                alpha_channel = np.asarray(arr[..., 3], dtype=np.uint8)
+                watermarked_rgb = np.concatenate(
+                    (watermarked_rgb, alpha_channel[..., np.newaxis]), axis=2
+                )
+            return watermarked_rgb, bit_len
+
+        grayscale = self._to_grayscale(arr)
+        stego, bit_len = self._embed_luminance(grayscale, payload, alpha)
+        return np.clip(stego, 0.0, 255.0).astype(np.uint8), bit_len
 
     def extract_from_crop(
         self,
-        cropped_image: np.ndarray,
+        cropped_image: np.ndarray | Image.Image,
         expected_bit_len: int | None = None,
         search_stride: int = 2,
         scales: list[float] | None = None,
@@ -86,7 +139,8 @@ class WatermarkPipeline:
             raise ValueError("search_stride must be positive")
 
         block_size = self.engine.block_size
-        trimmed_image = trim_solid_borders(cropped_image)
+        image_array = self._image_array(cropped_image)
+        trimmed_image = trim_solid_borders(image_array)
         base_image = self._to_grayscale(trimmed_image)
         scales_to_test = [] if scales is None else scales
         if any(not np.isfinite(scale) or scale <= 0 for scale in scales_to_test):

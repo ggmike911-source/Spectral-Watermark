@@ -227,3 +227,25 @@ Running `visual_demo.py` embedded the watermark with high fidelity (PSNR 44.5 dB
 - `.venv\Scripts\mypy src/`: **Success: no issues found in 6 source files** in **0.46s**.
 - `.venv\Scripts\spectral-watermark --help`: passed in **0.75s** and listed all three commands.
 - `git diff --check`: passed.
+
+---
+
+# Phase 8: Full-Color RGB / RGBA Luminance Watermarking [DONE]
+
+## Architecture and behavior
+- `WatermarkPipeline` now accepts NumPy arrays and Pillow images. It preserves 2D grayscale output, embeds RGB/RGBA through floating-point full-range BT.601 luminance, restores RGB by adding the luminance delta equally to each channel, then rounds/clips once. This additive inverse preserves Cb/Cr mathematically; RGBA alpha is reattached unchanged.
+- Color embedding uses a minimum luminance modulation strength of **2.0** (grayscale remains at the existing **0.45** default). The increase was needed for exact RGB JPEG quality-75 recovery after 4:2:0 chroma subsampling; the tested RGB fixture still measures **36.08 dB** PSNR against the required 32 dB threshold.
+- Pillow `P`, `LA`, and CMYK inputs convert to RGB/RGBA as appropriate. RGB/RGBA border trimming evaluates per-channel spatial variation while excluding alpha; extraction and scale calibration then use floating-point luminance.
+- The CLI preserves grayscale/RGB/RGBA on embed, computes PSNR over active color channels only, handles RGBA-to-JPEG with a notice and RGB conversion, and performs color JPEG/blur/noise attacks in RGB. `visual_demo.py` remains compatible with its existing grayscale flow; `decode_demo.py` already loads RGB.
+- `SpectralEngine.embed_tile` already returns floating-point data, so its public signature and return behavior required no change.
+- README documents color and alpha preservation. Added RGB/RGBA, saturated-color, Pillow mode conversion, color border/scale, JPEG, RGB CLI benchmark, and RGBA-to-JPEG regressions.
+
+## RGB benchmark sample
+- `RGB_SECRET` embedding PSNR: **36.08 dB**; JPEG quality 75 recovered the payload exactly.
+- RGB CLI benchmark embedding PSNR: **36.51 dB**. Baseline, 50%-area unaligned crop, JPEG quality 75 (**29.01 dB**), Gaussian blur (**31.28 dB**), and Gaussian noise (**38.40 dB**) passed exact-match recovery. JPEG quality 50 (**28.48 dB**) was reported as `FAIL`; the benchmark correctly exited successfully because baseline recovery passed.
+
+## Phase 8 verification
+- `.venv\Scripts\pytest -v`: **30 passed in 24.87s**.
+- `.venv\Scripts\ruff check src/ tests/ examples/`: all checks passed in **0.04s**.
+- `.venv\Scripts\mypy src/`: **Success: no issues found in 6 source files** in **0.52s**.
+- `git diff --check`: passed.

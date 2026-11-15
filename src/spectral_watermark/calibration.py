@@ -93,17 +93,23 @@ class PilotCalibrator:
 def trim_solid_borders(image: np.ndarray, variance_threshold: float = 12.0) -> np.ndarray:
     """Strip low-variance outer rows and columns from screenshots when safe."""
     arr = np.asarray(image)
-    gray = arr.astype(np.float64, copy=False)
-    if gray.ndim == 3:
-        if gray.shape[2] == 1:
-            gray = gray[:, :, 0]
-        else:
-            gray = gray[:, :, :3] @ np.array([0.299, 0.587, 0.114])
-    if gray.ndim != 2:
+    if arr.ndim == 2:
+        variance_image = arr.astype(np.float64, copy=False)
+    elif arr.ndim == 3 and arr.shape[2] in (1, 3, 4):
+        variance_image = arr[:, :, :3].astype(np.float64, copy=False)
+        if variance_image.shape[2] == 1:
+            variance_image = variance_image[:, :, 0]
+    else:
         raise ValueError("Image must be 2D grayscale or an RGB(A) image")
 
-    valid_rows = np.flatnonzero(np.var(gray, axis=1) > variance_threshold)
-    valid_cols = np.flatnonzero(np.var(gray, axis=0) > variance_threshold)
+    if variance_image.ndim == 2:
+        row_variance = np.var(variance_image, axis=1)
+        col_variance = np.var(variance_image, axis=0)
+    else:
+        row_variance = np.mean(np.var(variance_image, axis=1), axis=1)
+        col_variance = np.mean(np.var(variance_image, axis=0), axis=1)
+    valid_rows = np.flatnonzero(row_variance > variance_threshold)
+    valid_cols = np.flatnonzero(col_variance > variance_threshold)
     if valid_rows.size <= 32 or valid_cols.size <= 32:
         return arr
     return arr[valid_rows[0] : valid_rows[-1] + 1, valid_cols[0] : valid_cols[-1] + 1]

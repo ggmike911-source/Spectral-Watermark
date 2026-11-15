@@ -47,3 +47,21 @@ def test_border_trimming():
     trimmed = trim_solid_borders(padded)
     assert trimmed.shape == stego.shape
     assert np.array_equal(trimmed, stego)
+
+
+def test_rgb_solid_border_trim_and_scale_recovery():
+    pipeline, grayscale_stego, bit_len = _make_stego()
+    rgb_stego = np.repeat(grayscale_stego[:, :, np.newaxis], 3, axis=2)
+    scaled = np.asarray(
+        Image.fromarray(rgb_stego).resize((320, 320), Image.Resampling.BICUBIC)
+    )
+    padded = np.empty((368, 368, 3), dtype=np.uint8)
+    padded[:] = (30, 34, 42)
+    padded[24:-24, 24:-24] = scaled
+
+    trimmed = trim_solid_borders(padded)
+
+    assert trimmed.shape == (320, 320, 3)
+    assert pipeline.extract_from_crop(
+        padded, expected_bit_len=bit_len, search_stride=2
+    ) == "TOP_SECRET"

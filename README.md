@@ -10,6 +10,7 @@ A high-performance, crop-resilient, blind image watermarking engine using 2D Dis
 2. **Mid-Frequency Ring Modulation**: Injects secret bits into mid-frequency annular magnitude bands, bypassing low-frequency visual artifacts and surviving high-frequency JPEG lossy quantization.
 3. **Reed-Solomon Error Correction**: Mathematical correction of corrupted or flipped bits induced by noise, blur, and lossy compression.
 4. **Blind Extraction**: Recovers data directly from stego-images without requiring the original host image.
+5. **Full-Color Preservation**: Embeds into floating-point BT.601 luminance while preserving RGB chroma and RGBA alpha.
 
 ---
 
@@ -59,6 +60,8 @@ spectral-watermark extract --input cropped_stego.png
 # Run adversarial distortion benchmarks (Cropping, JPEG compression, Blur, Noise)
 spectral-watermark benchmark --input cover.png
 ```
+
+Grayscale covers remain grayscale; RGB and RGBA covers retain their color (and alpha) when saved to a lossless format. JPEG output is allowed but lossy, and saving RGBA as JPEG drops alpha with a CLI notice.
 
 ---
 

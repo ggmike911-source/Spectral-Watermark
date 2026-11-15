@@ -23,6 +23,24 @@ def textured_image(tmp_path: Path) -> Path:
     return image_path
 
 
+@pytest.fixture
+def textured_rgb_image(tmp_path: Path) -> Path:
+    rng = np.random.default_rng(23)
+    gy, gx = np.mgrid[0:256, 0:256]
+    texture = np.stack(
+        (
+            128.0 + 46.0 * np.sin(gx / 10.0) + 32.0 * np.cos(gy / 14.0),
+            126.0 + 45.0 * np.sin((gx + gy) / 16.0) + 28.0 * np.cos(gx / 12.0),
+            124.0 + 42.0 * np.cos(gx / 11.0) * np.sin(gy / 15.0) + 30.0 * np.sin(gy / 9.0),
+        ),
+        axis=2,
+    )
+    texture += rng.normal(0.0, 9.0, size=(256, 256, 3))
+    image_path = tmp_path / "cover_rgb.png"
+    Image.fromarray(np.clip(texture, 8.0, 247.0).astype(np.uint8)).save(image_path)
+    return image_path
+
+
 def test_cli_version_and_help() -> None:
     runner = CliRunner()
 
@@ -147,3 +165,62 @@ def test_cli_benchmark_runs(textured_image: Path) -> None:
     assert "Exact Match" in result.output
     assert "Baseline (No Attack)" in result.output
     assert "Center / Unaligned Crop" in result.output
+
+
+def test_cli_rgb_roundtrip_and_benchmark(
+    textured_rgb_image: Path, tmp_path: Path
+) -> None:
+    runner = CliRunner()
+    stego_path = tmp_path / "stego_rgb.png"
+    embedded = runner.invoke(
+        cli,
+        [
+            "embed",
+            "--input",
+            str(textured_rgb_image),
+            "--payload",
+            "RGB_SECRET",
+            "--output",
+            str(stego_path),
+        ],
+    )
+    extracted = runner.invoke(cli, ["extract", "--input", str(stego_path), "--quiet"])
+    benchmark = runner.invoke(cli, ["benchmark", "--input", str(textured_rgb_image)])
+
+    assert embedded.exit_code == 0, embedded.output
+    with Image.open(stego_path) as stego_image:
+        assert stego_image.mode == "RGB"
+    assert extracted.exit_code == 0, extracted.output
+    assert extracted.output.strip() == "RGB_SECRET"
+    assert benchmark.exit_code == 0, benchmark.output
+    assert "Baseline (No Attack)" in benchmark.output
+
+
+def test_cli_rgba_jpeg_output_drops_alpha_with_notice(
+    textured_rgb_image: Path, tmp_path: Path
+) -> None:
+    runner = CliRunner()
+    rgba_path = tmp_path / "cover_rgba.png"
+    output_path = tmp_path / "stego.jpg"
+    with Image.open(textured_rgb_image) as cover:
+        rgb = np.asarray(cover.convert("RGB"))
+    alpha = np.linspace(0, 255, 256, dtype=np.uint8)[None, :].repeat(256, axis=0)
+    Image.fromarray(np.dstack((rgb, alpha))).save(rgba_path)
+
+    result = runner.invoke(
+        cli,
+        [
+            "embed",
+            "--input",
+            str(rgba_path),
+            "--payload",
+            "RGB_SECRET",
+            "--output",
+            str(output_path),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "JPEG does not support alpha" in result.output
+    with Image.open(output_path) as stego:
+        assert stego.mode == "RGB"

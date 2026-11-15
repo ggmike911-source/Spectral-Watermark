@@ -16,11 +16,19 @@ _MIN_IMAGE_SIZE = 64
 _MULTI_SCALES = [1.0, 1.25, 1.5, 0.8, 0.75]
 
 
-def _load_grayscale(path: Path) -> np.ndarray:
+def _load_image(path: Path) -> np.ndarray:
     try:
         with Image.open(path) as image:
             image.load()
-            return np.asarray(image.convert("L"))
+            if image.mode in {"L", "RGB", "RGBA"}:
+                return np.asarray(image).copy()
+            if image.mode in {"LA", "PA"} or "transparency" in image.info:
+                return np.asarray(image.convert("RGBA")).copy()
+            if image.mode in {"CMYK", "YCbCr"}:
+                return np.asarray(image.convert("RGB")).copy()
+            if image.mode == "P":
+                return np.asarray(image.convert("RGB")).copy()
+            return np.asarray(image.convert("L")).copy()
     except (OSError, UnidentifiedImageError, ValueError) as exc:
         raise click.ClickException(f"Cannot read image '{path}': {exc}") from exc
 
@@ -35,6 +43,9 @@ def _validate_image_size(image: np.ndarray, path: Path, minimum: int = _MIN_IMAG
 
 
 def _compute_psnr(reference: np.ndarray, degraded: np.ndarray) -> float:
+    if reference.ndim == 3 and reference.shape[2] == 4:
+        reference = reference[..., :3]
+        degraded = degraded[..., :3]
     difference = reference.astype(np.float64) - degraded.astype(np.float64)
     mse = float(np.mean(difference**2))
     return math.inf if mse == 0.0 else 20.0 * math.log10(255.0 / math.sqrt(mse))
@@ -77,7 +88,7 @@ def cli() -> None:
 )
 def embed(input_path: Path, payload: str, output_path: Path) -> None:
     """Embed a payload into an image."""
-    original = _load_grayscale(input_path)
+    original = _load_image(input_path)
     _validate_image_size(original, input_path)
 
     pipeline = WatermarkPipeline()
@@ -93,7 +104,14 @@ def embed(input_path: Path, payload: str, output_path: Path) -> None:
     try:
         stego, bit_len = pipeline.embed_image(original, payload)
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        Image.fromarray(stego).save(output_path)
+        output_image = Image.fromarray(stego)
+        if output_image.mode == "RGBA" and output_path.suffix.lower() in {".jpg", ".jpeg"}:
+            click.echo(
+                "Note: JPEG does not support alpha; saving the RGB channels only.",
+                err=True,
+            )
+            output_image = output_image.convert("RGB")
+        output_image.save(output_path)
     except (OSError, ValueError) as exc:
         raise click.ClickException(f"Could not embed or save watermark: {exc}") from exc
     elapsed_ms = (time.perf_counter() - started) * 1000.0
@@ -141,7 +159,7 @@ def extract(
     quiet: bool,
 ) -> None:
     """Extract a payload from a watermarked image or crop."""
-    image = _load_grayscale(input_path)
+    image = _load_image(input_path)
     _validate_image_size(image, input_path)
     if min_chars > max_chars:
         raise click.ClickException("--min-chars must be less than or equal to --max-chars.")
@@ -190,11 +208,16 @@ def extract(
 
 def _jpeg_round_trip(image: np.ndarray, quality: int) -> np.ndarray:
     buffer = io.BytesIO()
-    Image.fromarray(image).save(buffer, format="JPEG", quality=quality)
+    jpeg_input = image[..., :3] if image.ndim == 3 and image.shape[2] == 4 else image
+    Image.fromarray(jpeg_input).save(buffer, format="JPEG", quality=quality)
     buffer.seek(0)
     with Image.open(buffer) as compressed:
         compressed.load()
-        return np.asarray(compressed.convert("L"))
+        if image.ndim == 2:
+            result = compressed.convert("L")
+        else:
+            result = compressed.convert("RGB")
+        return np.asarray(result).copy()
 
 
 def _format_table(rows: list[tuple[str, str, str, str, str]]) -> str:
@@ -225,7 +248,7 @@ def _format_table(rows: list[tuple[str, str, str, str, str]]) -> str:
 @click.option("--seed", default=42, show_default=True, type=int)
 def benchmark(input_path: Path, payload: str, seed: int) -> None:
     """Benchmark recovery under deterministic image distortions."""
-    original = _load_grayscale(input_path)
+    original = _load_image(input_path)
     _validate_image_size(original, input_path)
 
     pipeline = WatermarkPipeline()
@@ -235,19 +258,27 @@ def benchmark(input_path: Path, payload: str, seed: int) -> None:
     except ValueError as exc:
         raise click.ClickException(f"Could not embed benchmark payload: {exc}") from exc
 
-    height, width = stego.shape
+    height, width = stego.shape[:2]
     crop_height = max(64, round(height / math.sqrt(2.0)))
     crop_width = max(64, round(width / math.sqrt(2.0)))
-    crop_y = min(19, max(height - crop_height, 0))
-    crop_x = min(23, max(width - crop_width, 0))
+    crop_y = max((height - crop_height) // 2, 0)
+    crop_x = max((width - crop_width) // 2, 0)
+    if height - crop_height > 0 and crop_y % 2 == 0:
+        crop_y += 1
+    if width - crop_width > 0 and crop_x % 2 == 0:
+        crop_x += 1
     crop = stego[crop_y : crop_y + crop_height, crop_x : crop_x + crop_width]
 
+    attack_image = stego[..., :3] if stego.ndim == 3 and stego.shape[2] == 4 else stego
     blurred = np.asarray(
-        Image.fromarray(stego).filter(ImageFilter.GaussianBlur(radius=0.8))
+        Image.fromarray(attack_image).filter(ImageFilter.GaussianBlur(radius=0.8))
     )
     rng = np.random.default_rng(seed)
     noisy = np.clip(
-        stego.astype(np.float64) + rng.normal(0.0, 3.0, size=stego.shape), 0.0, 255.0
+        attack_image.astype(np.float64)
+        + rng.normal(0.0, 3.0, size=attack_image.shape),
+        0.0,
+        255.0,
     ).astype(np.uint8)
 
     attacks: list[tuple[str, np.ndarray, str]] = [
