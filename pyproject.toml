@@ -1,24 +1,35 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=77.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "spectral-watermark"
 version = "0.1.0"
-description = "Frequency-domain, crop-resilient, blind image watermarking engine"
+description = "Crop-resilient, blind spectral image watermarking with RGB and RGBA support"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
-    { name = "Lead Architect", email = "author@example.com" }
+    { name = "Mike Xian (@ggmike911-source)" }
+]
+keywords = [
+    "image-watermarking",
+    "digital-watermark",
+    "spectral",
+    "fourier-transform",
+    "reed-solomon",
+    "image-processing",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "Typing :: Typed",
     "Topic :: Scientific/Engineering :: Image Processing",
-    "Topic :: Security :: Cryptography"
+    "Topic :: Security :: Cryptography",
 ]
 dependencies = [
     "numpy>=1.23.0",
@@ -40,8 +51,16 @@ dev = [
 [project.scripts]
 spectral-watermark = "spectral_watermark.cli:main"
 
+[project.urls]
+Homepage = "https://github.com/ggmike911-source/Spectral-Watermark"
+Repository = "https://github.com/ggmike911-source/Spectral-Watermark"
+Issues = "https://github.com/ggmike911-source/Spectral-Watermark/issues"
+
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+spectral_watermark = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,0 +1,22 @@
+include LICENSE
+include README.md
+include pyproject.toml
+recursive-include src/spectral_watermark *.py py.typed
+
+prune examples
+prune tests
+prune benchmarks
+prune docs
+prune .venv
+prune .mypy_cache
+prune .pytest_cache
+prune .ruff_cache
+prune dist
+prune src/spectral_watermark.egg-info
+recursive-exclude src/spectral_watermark.egg-info *
+exclude instructions.md
+exclude log.md
+exclude .gitignore
+global-exclude *.png
+global-exclude *.py[cod]
+global-exclude __pycache__

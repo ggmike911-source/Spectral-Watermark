@@ -249,3 +249,24 @@ Running `visual_demo.py` embedded the watermark with high fidelity (PSNR 44.5 dB
 - `.venv\Scripts\ruff check src/ tests/ examples/`: all checks passed in **0.04s**.
 - `.venv\Scripts\mypy src/`: **Success: no issues found in 6 source files** in **0.52s**.
 - `git diff --check`: passed.
+
+---
+
+# Phase 9 (Part 1): Packaging Hygiene, `py.typed`, & PyPI README Polish [DONE]
+
+## Packaging and documentation
+- Added the empty PEP 561 marker `src/spectral_watermark/py.typed` and configured setuptools package data so it is present in both wheel and sdist.
+- Reworked the README for PyPI: pip installation first, development install from the verified GitHub remote, runnable API example, all three CLI commands and their flags/defaults, color/alpha behavior, image size and payload limits, JPEG caveat, development checks, and license. No relative links or unresolved username placeholder remain.
+- Confirmed GitHub remote: `https://github.com/ggmike911-source/Spectral-Watermark`. README uses the actual URL; `YOUR_GITHUB_USERNAME` does not need to be filled in.
+- Synced project author name to the LICENSE holder, retained the already-configured author email, refreshed description/keywords/URLs/classifiers, and added SPDX `license = "MIT"` plus `license-files = ["LICENSE"]`. Removed the legacy MIT license classifier to avoid conflict with SPDX metadata.
+- The venv initially had setuptools **58.1.0**, below the PEP 639 requirement. Upgraded it to **84.2.1** and set the build requirement to `setuptools>=77.0`.
+- Added `MANIFEST.in` rules for required project/package inputs and explicit pruning of tests, examples, scratch logs/instructions, placeholder directories, caches, virtualenv, and PNG artifacts. Wheel contains no local project extras. The sdist contains only setuptools’ generated `src/spectral_watermark.egg-info/SOURCES.txt` manifest in addition to the requested project/package files; other stale egg-info files are excluded.
+- Verified the Python API quickstart in the selected venv: RGB embed returned a `(256, 256, 3)` image and 176 encoded bits; the documented unaligned crop recovered `SECRET_2026`.
+
+## Phase 9 verification
+- `.venv\Scripts\pytest -v`: **30 passed in 26.64s**.
+- `.venv\Scripts\ruff check src/ tests/ examples/`: all checks passed.
+- `.venv\Scripts\mypy src/`: **Success: no issues found in 6 source files**.
+- Built wheel and `.tar.gz` sdist with setuptools 84.2.1. Audited that `py.typed`, LICENSE, README, and project metadata are present; tests/examples/benchmarks/docs, instructions/log, PNGs, and `.venv` are absent. Verified wheel `License-Expression: MIT` and repository URL metadata.
+- `.venv\Scripts\spectral-watermark --help`: passed.
+- `git diff --check`: passed.
