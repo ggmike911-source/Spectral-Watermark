@@ -270,3 +270,11 @@ Running `visual_demo.py` embedded the watermark with high fidelity (PSNR 44.5 dB
 - Built wheel and `.tar.gz` sdist with setuptools 84.2.1. Audited that `py.typed`, LICENSE, README, and project metadata are present; tests/examples/benchmarks/docs, instructions/log, PNGs, and `.venv` are absent. Verified wheel `License-Expression: MIT` and repository URL metadata.
 - `.venv\Scripts\spectral-watermark --help`: passed.
 - `git diff --check`: passed.
+
+## Phase 9 (Notebook): Interactive Showcase & User Guide (`quickstart_showcase.ipynb`) [DONE]
+- Added a pre-executed, offline notebook with five sections: implementation overview, deterministic RGB embedding and FFT visualization, four in-memory distortion recoveries, temporary-directory CLI examples, and a concise API/CLI reference.
+- Verified exact recovery of `SPECTRAL_GUIDE_2026` after an unaligned crop, JPEG quality 75 with 4:2:0 subsampling, a 1.25x bicubic screenshot with a dark border (trimmed and calibrated at 1.24x), and RGBA embedding with an unchanged alpha channel. RGB embedding measured **32.67 dB** PSNR with equal per-channel changes.
+- Added the prominent absolute-GitHub notebook link to the README. Added Jupyter, nbconvert, and ipykernel to the development extra only; core project dependencies remain unchanged.
+- Executed `jupyter nbconvert --to notebook --execute --inplace examples\quickstart_showcase.ipynb`; all four code cells completed, and both figures are embedded in the notebook.
+- Built and inspected wheel and sdist archives; neither contains `examples/`. `MANIFEST.in` continues to prune `examples/`.
+- Validation: `.venv\Scripts\pytest -v` (**30 passed**); `.venv\Scripts\ruff check src/ tests/ examples/` (**passed**); `.venv\Scripts\mypy src/` (**no issues**).

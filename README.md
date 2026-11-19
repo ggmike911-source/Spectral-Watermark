@@ -2,6 +2,8 @@
 
 Crop-resilient, blind image watermarking using 2D Fourier transforms and Reed–Solomon error correction. Embed a short UTF-8 payload into image luminance and recover it without the original cover image.
 
+> **Interactive Notebook Guide:** [Run the offline RGB showcase and Python/CLI quickstart](https://github.com/ggmike911-source/Spectral-Watermark/blob/main/examples/quickstart_showcase.ipynb).
+
 ## Features
 
 - **Crop resilience:** 64 × 64 spatial tiles repeat the encoded payload across the image.
