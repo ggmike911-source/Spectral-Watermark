@@ -137,6 +137,12 @@ class WatermarkPipeline:
         """
         if search_stride <= 0:
             raise ValueError("search_stride must be positive")
+        if expected_bit_len is not None and expected_bit_len <= 0:
+            raise ValueError("expected_bit_len must be positive")
+        if min_chars < 1 or max_chars < min_chars:
+            raise ValueError("character bounds must satisfy 1 <= min_chars <= max_chars")
+        if timeout is not None and (not np.isfinite(timeout) or timeout <= 0):
+            raise ValueError("timeout must be finite and positive")
 
         block_size = self.engine.block_size
         image_array = self._image_array(cropped_image)
@@ -153,7 +159,11 @@ class WatermarkPipeline:
         if expected_bit_len is not None:
             bit_lens: list[int] = [int(expected_bit_len)]
         else:
-            bit_lens = [self._payload_bit_len(n) for n in range(int(min_chars), int(max_chars) + 1)]
+            max_utf8_bytes = min(int(max_chars) * 4, 255)
+            bit_lens = [
+                self._payload_bit_len(num_bytes)
+                for num_bytes in range(int(min_chars), max_utf8_bytes + 1)
+            ]
 
         # Vectorized coordinate arrays per candidate length; infeasible lengths are skipped.
         per_length: dict[int, tuple[np.ndarray, np.ndarray]] = {}
@@ -162,7 +172,7 @@ class WatermarkPipeline:
                 per_length[bit_len] = self.engine.get_bin_arrays(bit_len)
             except ValueError:
                 # Not enough spectral bins for this length; no valid embedding could exist.
-                continue
+                break
         if not per_length:
             return None
 
@@ -220,7 +230,10 @@ class WatermarkPipeline:
                         return None
                     bits = self.engine._compare_pairs(spectrum, a, b)
                     decoded = self.codec.decode_packet(bits)
-                    if decoded is not None:
+                    if decoded is not None and (
+                        expected_bit_len is not None
+                        or min_chars <= len(decoded) <= max_chars
+                    ):
                         return decoded
                 return None
 
@@ -260,6 +273,6 @@ class WatermarkPipeline:
         return None
 
     @staticmethod
-    def _payload_bit_len(num_chars: int) -> int:
-        """Total packet bit length for a payload of `num_chars` characters (11 + N bytes)."""
-        return (11 + num_chars) * 8
+    def _payload_bit_len(num_bytes: int) -> int:
+        """Total packet bit length for `num_bytes` of UTF-8 payload data."""
+        return (11 + num_bytes) * 8

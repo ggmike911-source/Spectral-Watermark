@@ -1,5 +1,3 @@
-pip install flask
-
 from __future__ import annotations
 
 import base64
@@ -212,8 +210,9 @@ def pil_to_data_url(img: Image.Image, fmt: str = "PNG") -> str:
 
 
 def read_rgb_array(file_storage: Any) -> np.ndarray:
-    img = Image.open(file_storage.stream).convert("RGB")
-    return np.asarray(img)
+    with Image.open(file_storage.stream) as image:
+        image.load()
+        return np.asarray(image.convert("RGB")).copy()
 
 
 def call_extract(
@@ -221,19 +220,14 @@ def call_extract(
     expected_bit_len: int | None = None,
     search_stride: int = 2,
     multi_scale: bool = False,
-) -> Any:
-    # Support different extract_from_crop signatures across versions
-    kwargs: dict[str, Any] = {"search_stride": search_stride}
-    if expected_bit_len is not None:
-        kwargs["expected_bit_len"] = expected_bit_len
-    if multi_scale:
-        kwargs["multi_scale"] = True
-
-    try:
-        return pipeline.extract_from_crop(arr, **kwargs)
-    except TypeError:
-        kwargs.pop("multi_scale", None)
-        return pipeline.extract_from_crop(arr, **kwargs)
+) -> str | None:
+    scales = [1.0, 1.25, 1.5, 0.8, 0.75] if multi_scale else None
+    return pipeline.extract_from_crop(
+        arr,
+        expected_bit_len=expected_bit_len,
+        search_stride=search_stride,
+        scales=scales,
+    )
 
 
 @app.route("/", methods=["GET", "POST"])
@@ -269,7 +263,7 @@ def index() -> str:
                         stego_img = Image.fromarray(np.asarray(stego_arr, dtype=np.uint8))
                         context["stego_data_url"] = pil_to_data_url(stego_img, "PNG")
                         context["bit_length"] = bit_length
-                except Exception as exc:
+                except (OSError, ValueError) as exc:
                     context["embed_error"] = f"Embed failed: {exc}"
 
         elif action == "auto_crop_extract":
@@ -299,7 +293,7 @@ def index() -> str:
                         search_stride=2,
                         multi_scale=False,
                     )
-                except Exception as exc:
+                except (OSError, ValueError) as exc:
                     context["autocrop_error"] = f"Auto-crop extraction failed: {exc}"
 
         elif action == "extract":
@@ -308,7 +302,9 @@ def index() -> str:
                 context["extract_error"] = "Please select an image first."
             else:
                 try:
-                    stride = max(1, int(request.form.get("stride", "2")))
+                    stride = int(request.form.get("stride", "2"))
+                    if stride < 1:
+                        raise ValueError("Search stride must be at least 1.")
                     bit_len_raw = request.form.get("expected_bit_len", "").strip()
                     expected_bit_len = int(bit_len_raw) if bit_len_raw else None
                     multi_scale = request.form.get("multi_scale") == "on"
@@ -320,11 +316,11 @@ def index() -> str:
                         search_stride=stride,
                         multi_scale=multi_scale,
                     )
-                except Exception as exc:
+                except (OSError, ValueError) as exc:
                     context["extract_error"] = f"Extraction failed: {exc}"
 
     return render_template_string(HTML_TEMPLATE, **context)
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(debug=False, port=5000)

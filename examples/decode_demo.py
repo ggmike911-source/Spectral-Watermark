@@ -36,7 +36,7 @@ class ScanProgressPrinter:
         self.last_print = 0.0
         self.last_tier = 0
 
-    def __call__(self, tier: int, checked: int, total: int, y: int, x: int) -> None:
+    def __call__(self, tier: int, checked: int, total: int, _y: int, _x: int) -> None:
         if not self.enabled:
             return
         now = time.perf_counter()
@@ -93,7 +93,9 @@ def decode_image(
         return None, 0.0
 
     try:
-        img_array = np.array(Image.open(path).convert("RGB"))
+        with Image.open(path) as image:
+            image.load()
+            img_array = np.asarray(image.convert("RGB")).copy()
     except (OSError, ValueError) as e:
         print(f"[!] Error loading image '{path}': {e}", file=sys.stderr)
         return None, 0.0
@@ -189,6 +191,17 @@ def main() -> None:
 
     args = parser.parse_args()
 
+    if args.stride < 1:
+        parser.error("--stride must be at least 1")
+    if args.bit_len is not None and args.bit_len < 1:
+        parser.error("--bit-len must be at least 1")
+    if args.max_chars < 1:
+        parser.error("--max-chars must be at least 1")
+    if args.timeout is not None and (not np.isfinite(args.timeout) or args.timeout <= 0):
+        parser.error("--timeout must be finite and greater than 0")
+    if any(not np.isfinite(scale) or scale <= 0 for scale in args.scale):
+        parser.error("each --scale value must be finite and greater than 0")
+
     if not args.quiet:
         print("================================================================")
         print(" spectral-watermark: Standalone Decoder Utility")
@@ -236,10 +249,10 @@ if __name__ == "__main__":
 
 # How to run:
 # 1. Decode a specific image (e.g. your scenery stego image or any cropped file)
-# .venv\Scripts\python examples\decode_demo.py path\to\my_photo.png
+# python examples/decode_demo.py path/to/my_photo.png
 
 # 2. Faster scan if you know the exact bit length
-# .venv\Scripts\python examples\decode_demo.py path\to\my_photo.png --bit-len 160
+# python examples/decode_demo.py path/to/my_photo.png --bit-len 160
 
 # 3. Fine-grained pixel-by-pixel search stride (stride=1)
-# .venv\Scripts\python examples\decode_demo.py path\to\my_photo.png --stride 1
+# python examples/decode_demo.py path/to/my_photo.png --stride 1

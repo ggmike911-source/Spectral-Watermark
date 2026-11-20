@@ -44,6 +44,7 @@ env/
 htmlcov/
 .mypy_cache/
 .ruff_cache/
+.ipynb_checkpoints/
 
 # Benchmark artifacts & outputs
 outputs/

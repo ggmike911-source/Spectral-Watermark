@@ -8,37 +8,14 @@ import math
 
 import matplotlib
 import numpy as np
+from PIL import Image
+
+from spectral_watermark import WatermarkPipeline
 
 # Use headless backend to ensure compatibility on any system
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-# def generate_sample_canvas(size: int = 256) -> np.ndarray:
-#     """Generates an unmistakably unique test image with random shapes every run."""
-#     rng = np.random.default_rng()
-#     canvas = np.zeros((size, size), dtype=np.float64)
-#     # 1. Random background gradient angle and intensity
-#     angle = rng.uniform(0, 2 * np.pi)
-#     gy, gx = np.mgrid[:size, :size]
-#     canvas += 128.0 + 40.0 * np.sin((gx * np.cos(angle) + gy * np.sin(angle)) / 20.0)
-#     # 2. Draw 3 random high-contrast geometric shapes
-#     for _ in range(4):
-#         cy, cx = rng.integers(40, size - 40, size=2)
-#         radius = rng.integers(15, 45)
-#         dist = np.sqrt((gx - cx) ** 2 + (gy - cy) ** 2)
-#         canvas[dist < radius] += rng.uniform(-60.0, 60.0)
-#     # 3. Add high-frequency texture
-#     canvas += rng.normal(0, 15.0, size=(size, size))
-#     return np.clip(canvas, 0, 255).astype(np.uint8)
-from PIL import Image
-
-from spectral_watermark import WatermarkPipeline
-
-# Load your own image
-
-pil_image = Image.open("my_photo.jpg").convert("L")  # Convert to grayscale
-pil_image = pil_image.resize((256, 256))  # Resize to 256x256
-original = np.array(pil_image)
 
 def compute_psnr(ref: np.ndarray, deg: np.ndarray) -> float:
     """Calculates Peak Signal-to-Noise Ratio (PSNR) in dB."""
@@ -46,11 +23,24 @@ def compute_psnr(ref: np.ndarray, deg: np.ndarray) -> float:
     return float("inf") if mse == 0 else 20.0 * math.log10(255.0 / math.sqrt(mse))
 
 
+def generate_sample_canvas(size: int = 256) -> np.ndarray:
+    """Generate a deterministic textured grayscale image for the demo."""
+    rng = np.random.default_rng(7)
+    gy, gx = np.mgrid[:size, :size]
+    texture = (
+        128.0
+        + 40.0 * np.sin((gx + gy) / 16.0)
+        + 25.0 * np.cos(gx / 9.0) * np.sin(gy / 13.0)
+        + rng.normal(0.0, 18.0, size=(size, size))
+    )
+    return np.clip(texture, 0.0, 255.0).astype(np.uint8)
+
+
 def main() -> None:
     print("[*] Initializing spectral watermark pipeline...")
     pipeline = WatermarkPipeline(block_size=64)
     secret_text = "TOP_SECRET"
-    original = np.array(pil_image) # np.array(pil_image) / generate_sample_canvas(256)  # Use your own image here
+    original = generate_sample_canvas()
 
     # 1. Embed Secret Watermark
     stego, bit_len = pipeline.embed_image(original, secret_text)

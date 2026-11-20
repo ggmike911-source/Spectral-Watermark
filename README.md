@@ -4,6 +4,8 @@ Crop-resilient, blind image watermarking using 2D Fourier transforms and Reed–
 
 > **Interactive Notebook Guide:** [Run the offline RGB showcase and Python/CLI quickstart](https://github.com/ggmike911-source/Spectral-Watermark/blob/main/examples/quickstart_showcase.ipynb).
 
+---
+
 ## Features
 
 - **Crop resilience:** 64 × 64 spatial tiles repeat the encoded payload across the image.
@@ -11,6 +13,8 @@ Crop-resilient, blind image watermarking using 2D Fourier transforms and Reed–
 - **Error correction:** Reed–Solomon encoding helps recover payloads after moderate distortion.
 - **Color support:** Embed in RGB/RGBA images through floating-point ITU-R BT.601 luminance. Equal RGB-channel adjustments nominally preserve chroma; RGBA alpha is preserved. Grayscale images remain grayscale.
 - **Distortion tools:** The CLI benchmark tests cropping, JPEG compression, blur, and noise.
+
+---
 
 ## Installation
 
@@ -28,6 +32,19 @@ cd Spectral-Watermark
 python -m pip install -e ".[dev]"
 ```
 
+### Optional Flask demo
+
+From a source checkout, install and run the optional web demo:
+
+```bash
+python -m pip install -e ".[web]"
+python app.py
+```
+
+The demo listens on `http://127.0.0.1:5000`.
+
+---
+
 ## Python API quickstart
 
 The pipeline accepts NumPy arrays and Pillow images. The example below embeds a payload into an RGB cover, saves the color-preserving result, then extracts from an unaligned crop:
@@ -38,7 +55,8 @@ from PIL import Image
 
 from spectral_watermark import WatermarkPipeline
 
-cover = np.asarray(Image.open("cover.png").convert("RGB"))
+with Image.open("cover.png") as image:
+    cover = np.asarray(image.convert("RGB"))
 pipeline = WatermarkPipeline()
 stego, bit_length = pipeline.embed_image(cover, "SECRET_2026")
 Image.fromarray(stego).save("stego.png")
@@ -54,6 +72,8 @@ print(payload)
 ```
 
 `embed_image` returns `(stego_array, bit_length)`. Grayscale input returns a 2D `uint8` array; RGB and RGBA input return color arrays, with RGBA alpha unchanged. The blind extractor can omit `expected_bit_len` to scan candidate payload lengths.
+
+---
 
 ## Command-line interface
 
@@ -98,6 +118,8 @@ spectral-watermark benchmark --input cover.png --payload "TEST" --seed 123
 
 The benchmark reports baseline embedding PSNR and recovery results for a center crop, JPEG quality 75 and 50, Gaussian blur, and Gaussian noise. Individual attack failures are reported in the table; the command exits non-zero if baseline recovery fails.
 
+---
+
 ## Technical constraints
 
 - The CLI requires cover and extraction images to be at least **64 × 64 pixels**.
@@ -106,6 +128,8 @@ The benchmark reports baseline embedding PSNR and recovery results for a center 
 - RGB/RGBA embedding adds the computed luminance change equally to red, green, and blue. Integer rounding and clipping at saturated color boundaries can cause small local chroma deviations.
 - JPEG is lossy and may reduce recovery reliability. Use a lossless image format when possible.
 
+---
+
 ## Development checks
 
 ```bash
@@ -113,6 +137,8 @@ pytest -v
 ruff check src/ tests/ examples/
 mypy src/
 ```
+
+---
 
 ## License
 

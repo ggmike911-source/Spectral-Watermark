@@ -197,7 +197,7 @@ def test_spectrum_caching_blind_scan(monkeypatch):
         crop,
         expected_bit_len=None,
         search_stride=2,
-        on_progress=lambda tier, checked, total, y, x: progress.append(checked),
+        on_progress=lambda _tier, checked, _total, _y, _x: progress.append(checked),
     )
     elapsed = time.perf_counter() - start
 
@@ -226,3 +226,11 @@ def test_too_small_crop_rejection():
     tiny = np.random.default_rng(123).integers(0, 255, size=(50, 50), dtype=np.uint8)
     assert pipeline.extract_from_crop(tiny, expected_bit_len=None) is None
     assert pipeline.extract_from_crop(tiny, expected_bit_len=96) is None
+
+
+def test_blind_length_scan_supports_multibyte_utf8():
+    pipeline = WatermarkPipeline()
+    cover = _make_rgb_texture()
+    stego, _ = pipeline.embed_image(cover, "水")
+
+    assert pipeline.extract_from_crop(stego, min_chars=1, max_chars=1) == "水"
