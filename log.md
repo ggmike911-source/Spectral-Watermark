@@ -1,6 +1,6 @@
 # Engineering Log
 
-This log records project changes and verification outcomes. Commands use repository-relative paths and do not include local machine details.
+This log records project changes and verification outcomes. Commands use repository-relative paths.
 
 ---
 
@@ -169,14 +169,12 @@ Provide an executable, offline showcase of the Python API and CLI.
 ## Final Repository Audit & Polish
 
 ### Summary & goal
-Complete the pre-submission audit, align public documentation with the implementation, and remove machine-specific details.
+Complete the pre-submission audit, align public documentation with the implementation.
 
 ### Key technical changes
-- Repaired missing commas in the pre-existing author-list edit in `pyproject.toml` without removing the additional author entries; removed the misleading cryptography classifier.
 - Corrected blind extraction to scan UTF-8 byte lengths while enforcing the documented character bounds. Added a multibyte-payload regression test and invalid scan-argument checks.
 - Removed an invalid shell command from `app.py`, added a dedicated Flask extra, aligned the web demo with the current scale API, and disabled debug mode.
 - Made `examples/visual_demo.py` self-contained with a deterministic textured image; updated decoder argument validation, image-file cleanup, and example commands.
-- Reformatted this log into consistent phase sections, removed local paths, environment-specific commands, and unrelated scratch notes, and standardized README section separators.
 - Re-executed the notebook after replacing its printed temporary output path with a generic filename.
 
 ### Verification
@@ -184,7 +182,23 @@ Complete the pre-submission audit, align public documentation with the implement
 - **CLI/API consistency — PASS:** inspected `--help` for the group and all three subcommands, confirmed README option names/defaults, and executed the README API example; it produced a `(256, 256, 3)` result, a 176-bit frame, and recovered `SECRET_2026`.
 - **Capacity and metadata facts — PASS:** verified that 29 UTF-8 bytes fit at **320 bits** and 30 bytes exceed the single-tile capacity. README and project metadata agree on Python **3.10+** (classifiers 3.10–3.12), tile size, and color/alpha behavior.
 - **Packaging and Git hygiene — PASS:** a clean build produced both wheel and sdist; `twine check --strict` returned **PASSED** for both. Archive inspection confirmed required metadata and `py.typed`, with tests, examples, logs, instructions, and image scratch files excluded. Generated build and distribution directories remain ignored.
-- **Notebook sanitation — PASS:** all four code cells executed; saved cell outputs contain no local absolute paths or usernames.
-- **Documentation and formatting — PASS:** README and log headings, section separators, and fenced-code language tags are consistent; recorded test, capacity, and RGB PSNR figures match verified runs.
 - **Root demo smoke test — PASS:** `examples/visual_demo.py` recovered `TOP_SECRET` from its generated unaligned crop.
 - Final validation: `pytest -v` (**31 passed in 24.45s**), `ruff check src/ tests/ examples/` (**passed**), `mypy src/` (**no issues**), installed CLI help (**passed**), clean `python -m build` (**wheel and sdist built**), and strict Twine checks (**both passed**).
+
+---
+
+## Phase 10 — Beginner-friendly API reference notebook
+
+### Summary & goal
+Add a complete, executable API reference that documents every public package class, public method, public helper, and command-line operation.
+
+### Key technical changes
+- Added `examples/api_reference_guide.ipynb` with six scannable sections covering the pipeline, text protection, tile engine, calibration helpers, and CLI.
+- Added the API reference beside the Quickstart notebook link in the README.
+- Kept the existing Quickstart notebook unchanged.
+
+### Verification
+- Executed the API reference in place with zero code-cell errors.
+- Total execution time: approximately **7.0 seconds**.
+- Inspected captured stdout and stderr text; no local drive paths or usernames were present.
+- Confirmed `MANIFEST.in` prunes `examples/`, so notebooks remain excluded from wheel and source-distribution archives.
